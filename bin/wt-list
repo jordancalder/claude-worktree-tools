@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# wt-list [root]
+#
+# Lists native Claude Code worktrees (<repo>/.claude/worktrees/<slug>) across
+# every git repo directly under <root> (default: current directory), with
+# branch and dirty/clean status. Exists to restore the "see all my worktrees
+# at a glance" visibility that sibling directories used to give for free,
+# now that worktrees live nested inside each repo instead.
+set -euo pipefail
+
+root="${1:-.}"
+root="$(cd "$root" && pwd)"
+
+printf '%-28s %-16s %-40s %s\n' "REPO" "SLUG" "BRANCH" "STATUS"
+
+found_any=0
+for repo in "$root"/*/; do
+  repo="${repo%/}"
+  repo_name="$(basename "$repo")"
+  git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 || continue
+
+  worktrees_dir="$repo/.claude/worktrees"
+  [ -d "$worktrees_dir" ] || continue
+
+  for wt in "$worktrees_dir"/*/; do
+    [ -d "$wt" ] || continue
+    wt="${wt%/}"
+    slug="$(basename "$wt")"
+
+    git -C "$repo" worktree list --porcelain 2>/dev/null | grep -q "^worktree $wt$" || continue
+
+    branch="$(git -C "$wt" branch --show-current 2>/dev/null || echo "?")"
+    if [ -n "$(git -C "$wt" status --porcelain 2>/dev/null)" ]; then
+      status="dirty"
+    else
+      status="clean"
+    fi
+
+    printf '%-28s %-16s %-40s %s\n' "$repo_name" "$slug" "$branch" "$status"
+    found_any=1
+  done
+done
+
+if [ "$found_any" -eq 0 ]; then
+  echo "(no claude-wt worktrees found under $root)"
+fi

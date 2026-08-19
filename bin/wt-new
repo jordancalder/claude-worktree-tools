@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# wt-new <repo> <slug> [branch]
+#
+# Creates a native Claude Code worktree for one repo at
+# <repo>/.claude/worktrees/<slug>, on a new branch (default:
+# <git-user-local-part>/<slug>, matching the existing jordancalder/app-XXXX-...
+# convention). No-ops with a clear message if that worktree already exists.
+#
+# This is the single primitive both `claude-wt` and Claude itself (mid-session,
+# via Bash) use to create isolated per-repo checkouts.
+set -euo pipefail
+
+usage() {
+  echo "usage: wt-new <repo> <slug> [branch]" >&2
+  echo "  repo    path to (or name of, if run from its parent) a git repo" >&2
+  echo "  slug    short task identifier, e.g. app-4100-fix-thing" >&2
+  echo "  branch  branch to create (default: <git-user-local-part>/<slug>)" >&2
+  exit 1
+}
+
+[ $# -ge 2 ] || usage
+
+repo="$1"
+slug="$2"
+branch="${3:-}"
+
+[ -d "$repo" ] || { echo "wt-new: no such directory: $repo" >&2; exit 1; }
+git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 || {
+  echo "wt-new: not a git repo: $repo" >&2
+  exit 1
+}
+
+worktree_rel=".claude/worktrees/$slug"
+worktree_abs="$(cd "$repo" && pwd)/$worktree_rel"
+
+if [ -d "$worktree_abs" ]; then
+  echo "wt-new: worktree already exists at $worktree_abs — leaving it as-is"
+  echo "$worktree_abs"
+  exit 0
+fi
+
+if [ -z "$branch" ]; then
+  user_email="$(git -C "$repo" config user.email || true)"
+  user_local="${user_email%%@*}"
+  [ -n "$user_local" ] || user_local="$(git -C "$repo" config user.name | tr ' ' '-' || true)"
+  [ -n "$user_local" ] || user_local="dev"
+  branch="$user_local/$slug"
+fi
+
+mkdir -p "$(dirname "$worktree_abs")"
+
+if git -C "$repo" show-ref --verify --quiet "refs/heads/$branch"; then
+  echo "wt-new: branch $branch already exists — creating worktree on top of it" >&2
+  git -C "$repo" worktree add "$worktree_rel" "$branch"
+else
+  git -C "$repo" worktree add -b "$branch" "$worktree_rel"
+fi
+
+echo "wt-new: created worktree for $repo at $worktree_abs (branch $branch)"
+echo "$worktree_abs"

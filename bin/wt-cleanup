@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# wt-cleanup [--yes] [root]
+#
+# Finds native Claude Code worktrees (<repo>/.claude/worktrees/<slug>) across
+# every git repo directly under <root> (default: current directory) whose
+# branch has been merged into the repo's default branch, and lists them.
+# Never touches a worktree with uncommitted changes or an unmerged branch.
+#
+# Without --yes, this only lists what's safe to remove (a dry run) -- this
+# also makes it safe to run non-interactively, e.g. from Claude's Bash tool
+# or the /wt-cleanup command, which have no stdin to prompt against. Pass
+# --yes to actually remove the listed worktrees and delete their branches.
+set -euo pipefail
+
+yes=0
+root="."
+for arg in "$@"; do
+  case "$arg" in
+    --yes|-y) yes=1 ;;
+    *) root="$arg" ;;
+  esac
+done
+root="$(cd "$root" && pwd)"
+
+default_branch_for() {
+  local repo="$1"
+  git -C "$repo" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##' \
+    || git -C "$repo" symbolic-ref --short HEAD 2>/dev/null \
+    || echo "main"
+}
+
+candidates=()
+
+for repo in "$root"/*/; do
+  repo="${repo%/}"
+  repo_name="$(basename "$repo")"
+  git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 || continue
+
+  worktrees_dir="$repo/.claude/worktrees"
+  [ -d "$worktrees_dir" ] || continue
+
+  default_branch="$(default_branch_for "$repo")"
+
+  for wt in "$worktrees_dir"/*/; do
+    [ -d "$wt" ] || continue
+    wt="${wt%/}"
+    slug="$(basename "$wt")"
+
+    git -C "$repo" worktree list --porcelain 2>/dev/null | grep -q "^worktree $wt$" || continue
+
+    branch="$(git -C "$wt" branch --show-current 2>/dev/null || echo "")"
+    dirty="$(git -C "$wt" status --porcelain 2>/dev/null)"
+
+    merged=""
+    if [ -n "$branch" ] && git -C "$repo" merge-base --is-ancestor "$branch" "$default_branch" 2>/dev/null; then
+      merged="yes"
+    fi
+
+    if [ -z "$dirty" ] && [ "$merged" = "yes" ]; then
+      candidates+=("$repo|$repo_name|$slug|$branch|$wt")
+    fi
+  done
+done
+
+if [ "${#candidates[@]}" -eq 0 ]; then
+  echo "wt-cleanup: no merged, clean worktrees found under $root — nothing to do"
+  exit 0
+fi
+
+echo "The following worktrees are merged into their default branch and have no"
+echo "uncommitted changes — safe to remove:"
+echo
+for c in "${candidates[@]}"; do
+  IFS='|' read -r _ repo_name slug branch _ <<<"$c"
+  printf '  %-28s %-16s (branch %s)\n' "$repo_name" "$slug" "$branch"
+done
+echo
+
+if [ "$yes" -ne 1 ]; then
+  echo "Dry run only -- re-run with --yes to actually remove these."
+  exit 0
+fi
+
+for c in "${candidates[@]}"; do
+  IFS='|' read -r repo repo_name slug branch wt <<<"$c"
+  echo "Removing $repo_name/.claude/worktrees/$slug ..."
+  git -C "$repo" worktree remove "$wt"
+  git -C "$repo" branch -D "$branch" >/dev/null 2>&1 || true
+done
+
+echo "wt-cleanup: done"

@@ -1,0 +1,14 @@
+{
+  "name": "claude-worktree-tools",
+  "displayName": "Claude Worktree Tools",
+  "description": "Multi-repo native worktree tooling: launch a Claude session across several repos' isolated worktrees at once, and auto-create worktrees on the fly for repos discovered mid-session, all using Claude Code's native EnterWorktree/.claude/worktrees mechanism.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Jordan Calder"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/jordancalder/claude-worktree-tools",
+  "repository": "https://github.com/jordancalder/claude-worktree-tools",
+  "keywords": ["worktree", "git", "multi-repo"],
+  "hooks": "./hooks/hooks.json"
+}

@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# claude-wt <slug> <repo> [repo2 ...]
+#
+# Run from a multi-repo workspace root (e.g. /Users/jordan/code). Creates a
+# native Claude Code worktree (<repo>/.claude/worktrees/<slug>) for every
+# listed repo via `wt-new`, then launches a single `claude` session named
+# <slug>, seeded to EnterWorktree the first repo's worktree immediately.
+#
+# Any additional repo touched later in the session that wasn't listed here is
+# handled by this plugin's SessionStart-injected policy + PreToolUse guard —
+# claude-wt only needs the repos you already know about up front.
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+usage() {
+  echo "usage: claude-wt <slug> <repo> [repo2 ...]" >&2
+  echo "  slug     short task identifier, e.g. app-4100-fix-thing" >&2
+  echo "           (also used as the resumable session name: claude --resume <slug>)" >&2
+  echo "  repo...  one or more repo paths/names, first one is the primary" >&2
+  exit 1
+}
+
+[ $# -ge 2 ] || usage
+
+slug="$1"
+shift
+repos=("$@")
+
+worktree_paths=()
+for repo in "${repos[@]}"; do
+  wt_path="$("$script_dir/wt-new" "$repo" "$slug" | tail -n1)"
+  worktree_paths+=("$wt_path")
+done
+
+primary_path="${worktree_paths[0]}"
+
+if [ "${#worktree_paths[@]}" -gt 1 ]; then
+  others_list=""
+  for p in "${worktree_paths[@]:1}"; do
+    others_list="$others_list  - $p"$'\n'
+  done
+  others_note="The following repos also already have isolated worktrees prepared for this same task — work inside them directly (they're reachable from this launch directory, no need to EnterWorktree them):
+$others_list"
+else
+  others_note=""
+fi
+
+seed_prompt="Enter the isolated worktree at $primary_path now via the EnterWorktree tool (pass it as \`path\`), then wait for my next instruction.
+
+$others_note"
+
+exec claude --name "$slug" "$seed_prompt"
