@@ -17,7 +17,11 @@ repo_count=0
 for d in "$cwd"/*/; do
   d="${d%/}"
   [ -d "$d" ] || continue
-  if [ -e "$d/.git" ] || git -C "$d" rev-parse --git-dir >/dev/null 2>&1; then
+  # Only count directories that are themselves a repo ROOT (have their own
+  # .git entry) -- git rev-parse succeeds inside any subdirectory of a repo,
+  # not just at its root, so that alone would misclassify e.g. abodo-rails's
+  # own app/, engines/, etc. as separate nested repos.
+  if [ -e "$d/.git" ]; then
     repo_count=$((repo_count + 1))
     [ "$repo_count" -ge 2 ] && break
   fi

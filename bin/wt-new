@@ -25,10 +25,14 @@ slug="$2"
 branch="${3:-}"
 
 [ -d "$repo" ] || { echo "wt-new: no such directory: $repo" >&2; exit 1; }
-git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 || {
+toplevel="$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null)" || {
   echo "wt-new: not a git repo: $repo" >&2
   exit 1
 }
+if [ "$(cd "$repo" && pwd)" != "$toplevel" ]; then
+  echo "wt-new: $repo is a subdirectory of a repo -- using its root instead: $toplevel" >&2
+  repo="$toplevel"
+fi
 
 worktree_rel=".claude/worktrees/$slug"
 worktree_abs="$(cd "$repo" && pwd)/$worktree_rel"

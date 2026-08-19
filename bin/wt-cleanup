@@ -34,7 +34,9 @@ candidates=()
 for repo in "$root"/*/; do
   repo="${repo%/}"
   repo_name="$(basename "$repo")"
-  git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 || continue
+  # Only a repo ROOT counts -- rev-parse would also succeed for any
+  # ordinary subdirectory of a repo (e.g. if $root is itself inside a repo).
+  [ -e "$repo/.git" ] || continue
 
   worktrees_dir="$repo/.claude/worktrees"
   [ -d "$worktrees_dir" ] || continue

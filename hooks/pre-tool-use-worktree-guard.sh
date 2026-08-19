@@ -55,7 +55,10 @@ is_other_nested_repo() {
   local d="$1"
   [ -d "$d" ] || return 1
   [ "$(basename "$d")" != "$repo_name" ] || return 1
-  [ -e "$d/.git" ] || git -C "$d" rev-parse --git-dir >/dev/null 2>&1
+  # Only a repo ROOT counts (has its own .git entry) -- git rev-parse would
+  # also succeed for any ordinary subdirectory of a repo, which isn't what
+  # we want here.
+  [ -e "$d/.git" ]
 }
 
 tool_name="$(json_string tool_name)"
