@@ -24,7 +24,8 @@ that up front.
 
 ```bash
 # from your multi-repo workspace root, e.g. ~/code
-claude plugin install claude-worktree-tools@jordancalder/claude-worktree-tools --scope project
+claude plugin marketplace add jordancalder/claude-worktree-tools
+claude plugin install claude-worktree-tools@claude-worktree-tools --scope project
 ```
 
 This enables the plugin's hooks and slash commands for that workspace root

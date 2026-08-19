@@ -1,0 +1,13 @@
+{
+  "name": "claude-worktree-tools",
+  "owner": {
+    "name": "Jordan Calder"
+  },
+  "plugins": [
+    {
+      "name": "claude-worktree-tools",
+      "source": "./",
+      "description": "Multi-repo native worktree tooling: launch a Claude session across several repos' isolated worktrees at once, and auto-create worktrees on the fly for repos discovered mid-session."
+    }
+  ]
+}
